@@ -1,5 +1,7 @@
 name: Markdown zu PDF
 
+# Dieser Workflow startet automatisch bei Änderungen an Markdown-Dateien
+# oder manuell über die GitHub-Oberfläche.
 on:
   push:
     paths:
@@ -7,46 +9,59 @@ on:
       - ".github/workflows/markdown-pdf.yml"
   workflow_dispatch:
 
+# Ein Job ist ein abgeschlossener Arbeitsablauf auf einer frischen VM.
 jobs:
   build:
     name: Markdown in HTML und PDF umwandeln
     runs-on: ubuntu-latest
 
+    # Der Workflow braucht nur Leserechte auf den Code.
     permissions:
       contents: read
 
     steps:
+      # Holt den aktuellen Stand des Repositories auf die GitHub-VM.
       - name: Repository auschecken
         uses: actions/checkout@v4
 
+      # Installiert die Programme, die wir später zum Umwandeln brauchen.
       - name: Werkzeuge installieren
         run: |
           sudo apt-get update
           sudo apt-get install -y pandoc wkhtmltopdf
 
+      # Wandelt alle Markdown-Dateien in docs/ erst in HTML und dann in PDF um.
       - name: Markdown-Dateien umwandeln
         shell: bash
         run: |
           mkdir -p ausgabe
+          # nullglob sorgt dafür, dass ein leerer Treffer nicht als Textmuster bleibt.
           shopt -s nullglob
 
+          # Sammelt alle Markdown-Dateien aus dem docs-Ordner.
           files=(docs/*.md)
 
+          # Wenn es keine Markdown-Dateien gibt, brechen wir sauber ab.
           if [ ${#files[@]} -eq 0 ]; then
             echo "Keine Markdown-Dateien gefunden." | tee ausgabe/HINWEIS.txt
             exit 0
           fi
 
+          # Jede Datei wird einzeln verarbeitet.
           for file in "${files[@]}"; do
+            # Dateiname ohne Pfad und ohne .md-Endung, damit die Ausgabedateien
+            # denselben Namen bekommen.
             base="$(basename "$file" .md)"
             echo "Verarbeite $file"
             pandoc "$file" --standalone --to=html5 --metadata title="$base" -o "ausgabe/$base.html"
             wkhtmltopdf "ausgabe/$base.html" "ausgabe/$base.pdf"
           done
 
+          # Zeigt am Ende, was erzeugt wurde.
           echo "Erzeugte Dateien:"
           ls -la ausgabe
 
+      # Legt die erzeugten HTML- und PDF-Dateien als Download bereit.
       - name: Ergebnisse als Artefakt bereitstellen
         uses: actions/upload-artifact@v4
         with:
